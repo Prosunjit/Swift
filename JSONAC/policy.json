@@ -1,0 +1,14 @@
+[
+{
+"label":"protected",
+"target":"//past_employment"
+},
+{
+"label":"public",
+"target":"/"
+},
+{
+"label":"protected",
+"target":"/personalRecord/identification"
+},
+]

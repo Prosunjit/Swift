@@ -49,6 +49,11 @@ from swift.obj.diskfile import DATAFILE_SYSTEM_META, DiskFileManager
 
 from swift.common.my_debug import my_debug
 
+try:
+	from swift.JSONAC.ObQuery import ContentFilter
+except Exception as e:
+	print "JSONAC import error{}".format(e)
+
 class ObjectController(object):
     """Implements the WSGI application for the Swift Object Server."""
 
@@ -492,8 +497,11 @@ class ObjectController(object):
         try:
             with disk_file.open():
                 metadata = disk_file.get_metadata()
+
+		my_debug("metadata", metadata)
                 obj_size = int(metadata['Content-Length'])
                 file_x_ts = metadata['X-Timestamp']
+		#json_policy = metadata['JSON-Policy']
                 file_x_ts_flt = float(file_x_ts)
                 keep_cache = (self.keep_cache_private or
                               ('X-Auth-Token' not in request.headers and
@@ -505,7 +513,37 @@ class ObjectController(object):
                     request=request, conditional_response=True)
 		#overriding obj_size to reflect the change.
 		#obj_size = len(response.body)
-		my_debug("file content", response.body)
+		
+		''' if policy file is present & user_label is present apply JSONAC
+			Additional thing to have:
+				1. Check if policy from metadata is valid json
+				2. Check if user_clearance is present is headers. Read keystone info.
+				3. Pass JSONPath as headers
+				4. 
+		
+		'''
+
+		
+
+		json_policy = metadata['X-Object-Meta-Jsonpolicy'] if metadata.has_key('X-Object-Meta-Jsonpolicy') else None
+
+		user_clearance = 'public'
+
+		jsonpath = "/"
+
+		try:
+			if json_policy and user_clearance and jsonpath:
+				filtered_content = ContentFilter(content_str=response.body, policy_str=json_policy, user_clearance=user_clearance, query=jsonpath).apply()
+				if filtered_content:
+					response.body = filtered_content
+					obj_size = int(len(filtered_content))
+			else:
+				my_debug("#content_filter not working", True)
+		except Exception as e:
+			my_debug("Exception with content filtering{}".format(e), True)
+
+		'''end of content -filter '''
+			
                 response.headers['Content-Type'] = metadata.get(
                     'Content-Type', 'application/octet-stream')
                 for key, value in metadata.iteritems():
