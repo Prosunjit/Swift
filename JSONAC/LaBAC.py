@@ -1,18 +1,10 @@
-'''
-        Object label class. All the junior label of a label is maintained with 
-	a label.
-'''
-class ObjectLabel(object):
-	
-	def __init__(self, name):
-		self.name = name
-		# cleared_label  means the user label that have access this object label  as specified in the policy.
-		self.cleared_u_label = []
-		# inferred_label means inferred user labels that have access to this object label by user label hierarchy
-		self.inferred_u_label = []
-		# for object label we need all labels that are junior to a given label
-		self.junior_labels = []	
 
+class Label(object):
+	
+	def __init__(self,name):
+		self.name = name
+		# for object label we need all labels that are junior to a given label
+		self.junior_labels = []
 	
 	@property
         def is_senior_to(self):
@@ -26,8 +18,8 @@ class ObjectLabel(object):
 	# find all junior labels to this label
 	def all_junior_labels(self):
 		juniors =  self._all_junior_labels()
-		if self.name in juniors:
-			juniors.remove(self.name)
+		if self in juniors:
+			juniors.remove(self)
 		return juniors
 	
 	def _all_junior_labels(self):
@@ -35,8 +27,23 @@ class ObjectLabel(object):
 		for l in iter(self.is_senior_to):
 			res += l._all_junior_labels()
 		# assuming a node is junior to itself
-		return res + [self.name]
+		return res + [self]
 		
+
+'''
+        Object label class. All the junior label of a label is maintained with 
+	a label.
+'''
+class ObjectLabel(Label, object):
+	
+	def __init__(self, name):
+		Label.__init__(self,name)
+		#self.name = name
+		# cleared_label  means the user label that have access this object label  as specified in the policy.
+		self.cleared_u_label = []
+		# inferred_label means inferred user labels that have access to this object label by user label hierarchy
+		self.inferred_u_label = []
+
 
 	@property
 	def acl(self):
@@ -68,12 +75,16 @@ class ObjectLabel(object):
 
 '''
 
-class UserLabel(object):
+class UserLabel(Label,object):
 	def __init__(self, name):
+		Label.__init__(self,name)
 		# senior labels are all the labels that are senior from this label
 		self.senior_labels = []
-		self.junior_lables = []
-		self.name = name
+
+	# overriding base class definition, to simultaneous calculate senior-lables for Userlabel
+	def is_senior_to(self):
+		pass
+
 	@property
 	def is_junior_to(self):
 		print "Following list is infact is *is_junior_to* list"
@@ -83,19 +94,7 @@ class UserLabel(object):
 	def is_junior_to(self,label):
 		self.senior_labels.append(label)
 	
-	# is_senior_to returns all the nodes that are junior to it.
-	@property
-	def is_senior_to(self):
-		return self.junior_list
-
-	@is_senior_to.setter
-	def is_senior_to(self,label):
-		try:
-			self.junior_labels.append(label)
-			label.is_junior_to = self
-		except Exception as e:
-			print e
-			pass
+		
 
 
 '''
@@ -157,13 +156,14 @@ class LabelHierarchy:
 			res.append(t)
 		return res
 			
-
+#status= working
 def test_object_hierarchy():
 	olh = LabelHierarchy()
 	olh.add_x_dominates_y(x="o1",y="o2")
 	olh.add_x_dominates_y(x="o2",y="o3")
 	print olh.get_hierarchy()
 
+#status = working
 def test_object_label():
 	ol = ObjectLabel("o3")
 	ol.is_senior_to = "o2"
