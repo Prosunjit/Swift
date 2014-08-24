@@ -66,7 +66,6 @@ class ObjectLabel(Label, object):
 		# inferred_label means inferred user labels that have access to this object label by user label hierarchy
 		self.inferred_u_label = []
 
-
 	@property
 	def acl(self):
 		return  self.cleared_u_label + self.inferred_u_label
@@ -187,19 +186,84 @@ class LabelHierarchy:
 		print "senior lists"
 		self.print_hierarchy(self.get_senior_labels())
 
-			
+class Configuration(object):
+	def __init__(self):
+		pass
+
+	@staticmethod
+	def _dummy_policy():
+		return  [ ("u3","o1") ]
+	@staticmethod
+	def _dummy_user_label():
+		return [	("u1",["u2"]), \
+				("u2",["u3"]), \
+				("u3",[]) \
+		       ]
+	@staticmethod
+	def _dummy_object_label():		
+		return [	("o1",["o2"]), \
+				("o2",["o3"]), \
+				("o3",[]) \
+		       ]
+
+	def get_policy(self):
+		pass
+
+
+class Setup(object):
+	def __init__(self):
+		self._object_hierarchy = None
+		self._user_hierarchy = None
+		pass
+	@property	
+	def object_hierarchy(self):
+		return self._object_hierarchy
+
+	@object_hierarchy.setter
+	def object_hierarchy(self, hrchy):
+		self._object_hierarchy = LabelHierarchy(user=False) 
+		try:
+			for l_tuple in hrchy:
+				(label,domination_list) = l_tuple
+				for dl in domination_list:
+					self._object_hierarchy.add_x_dominates_y(x=label,y=dl)
+					pass
+
+		except Exception as e:
+			print e
+
+
+
+
+
+class AccessControl(object):
+	def __init__(object):
+		pass
+	
+
+
+
+def test_configuration():
+	print "{} \n {} \n {} \n".format ( \
+			Configuration._dummy_policy(), \
+			Configuration._dummy_user_label(),\
+			Configuration._dummy_object_label()     )
+
+
+
+#status = working			
 def test_user_label_hierarchy():
 	ulh = LabelHierarchy(user=True)
 	ulh.add_x_dominates_y(x="u1",y="u2")
 	ulh.add_x_dominates_y(x="u2",y="u3")
-	print ulh.get_hierarchy()
+	ulh.get_hierarchy()
 
 #status= working
 def test_object_hierarchy():
 	olh = LabelHierarchy()
 	olh.add_x_dominates_y(x="o1",y="o2")
 	olh.add_x_dominates_y(x="o2",y="o3")
-	print olh.get_hierarchy()
+	olh.get_hierarchy()
 
 #status = working
 def test_object_label():
@@ -221,4 +285,4 @@ def test():
 	test_object_label()
 
 if __name__ == "__main__":
-	test_user_label_hierarchy()
+	test_configuration()
