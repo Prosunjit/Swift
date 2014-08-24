@@ -1,10 +1,11 @@
-
+import sys
 class Label(object):
 	
 	def __init__(self,name):
 		self.name = name
 		# for object label we need all labels that are junior to a given label
 		self.junior_labels = []
+		self.senior_labels = []
 	
 	@property
         def is_senior_to(self):
@@ -14,7 +15,16 @@ class Label(object):
 	@is_senior_to.setter	
 	def is_senior_to(self,label):
 		self.junior_labels.append(label)
-		
+	
+
+	@property
+	def is_junior_to(self):
+		return self.senior_labels
+
+	@is_junior_to.setter
+	def is_junior_to(self,label):
+		self.senior_labels.append(label)
+
 	# find all junior labels to this label
 	def all_junior_labels(self):
 		juniors =  self._all_junior_labels()
@@ -28,7 +38,19 @@ class Label(object):
 			res += l._all_junior_labels()
 		# assuming a node is junior to itself
 		return res + [self]
+
+	def all_senior_labels(self):
+		seniors = self._all_senior_labels()
+		if self in seniors:
+			seniors.remove(self)
+		return seniors
 		
+	def _all_senior_labels(self):
+		res = []
+		for s in iter(self.is_junior_to):
+			res += s._all_senior_labels()
+		return res + [self]
+
 
 '''
         Object label class. All the junior label of a label is maintained with 
@@ -79,21 +101,10 @@ class UserLabel(Label,object):
 	def __init__(self, name):
 		Label.__init__(self,name)
 		# senior labels are all the labels that are senior from this label
-		self.senior_labels = []
 
-	# overriding base class definition, to simultaneous calculate senior-lables for Userlabel
-	def is_senior_to(self):
-		pass
 
-	@property
-	def is_junior_to(self):
-		print "Following list is infact is *is_junior_to* list"
-		return self.senior_labels
 
-	@is_junior_to.setter
-	def is_junior_to(self,label):
-		self.senior_labels.append(label)
-	
+
 		
 
 
@@ -128,6 +139,7 @@ class LabelHierarchy:
 		yy = self._find_node(y)
 		#self._add_x_dominates_y(x=xx, y=yy)
 		xx.is_senior_to = yy
+		yy.is_junior_to = xx
 		
 	def _add_x_dominates_y(x=None, y=None):
 		#if self.object_type == True:
@@ -149,13 +161,39 @@ class LabelHierarchy:
 				return n
 		return None
 	
-	def get_hierarchy(self):
-		res = []
+	def get_junior_labels(self):
+		res = {}
 		for label in iter(self.labels):
-			t =  (label.name, label.all_junior_labels())
-			res.append(t)
+			#t =  (label, label.all_junior_labels())
+			res[label] = label.all_junior_labels()
+			#res.append(t)
 		return res
+	def get_senior_labels(self):
+		res = {}
+		for label in iter(self.labels):
+			res[label] = label.all_senior_labels()
+		return res
+
+	def print_hierarchy(self,res):
+		for k in res.keys():
+			sys.stdout.write(format(k.name)+":")
+			for v in res[k]:
+				sys.stdout.write( v.name + " ")
+			sys.stdout.write("\n")
+
+	def get_hierarchy(self):
+		print "Junior Lists"
+		self.print_hierarchy( self.get_junior_labels())
+		print "senior lists"
+		self.print_hierarchy(self.get_senior_labels())
+
 			
+def test_user_label_hierarchy():
+	ulh = LabelHierarchy(user=True)
+	ulh.add_x_dominates_y(x="u1",y="u2")
+	ulh.add_x_dominates_y(x="u2",y="u3")
+	print ulh.get_hierarchy()
+
 #status= working
 def test_object_hierarchy():
 	olh = LabelHierarchy()
@@ -183,4 +221,4 @@ def test():
 	test_object_label()
 
 if __name__ == "__main__":
-	test_object_hierarchy()
+	test_user_label_hierarchy()
