@@ -224,6 +224,7 @@ class LabelHierarchy:
 
 class Configuration(object):
 	def __init__(self):
+		self.policy_dict={}
 		self._policy = None
 		self._user_label_hierarchy = None
 		self._object_label_hierarchy = None
@@ -245,17 +246,12 @@ class Configuration(object):
 	
 	@property
 	def policy(self):
-		return self._policy
+		return self.policy_dict
 	
-	'''
-		sets policy
-		param policy: [ \
-				(<string object_label>,<string user_label>), ... \
-			      ]
-	'''
-	@policy.setter
-	def policy(self,policy):
-		self._policy = policy
+
+	#@policy.setter
+	#def policy(self,policy):
+	#	self._policy = policy
 
 	@property
 	def user_label_hierarchy(self):
@@ -292,15 +288,32 @@ class Configuration(object):
 	def object_label_hierarchy(self, ob_label_hierarchy):
 		self._object_label_hierarchy = ob_label_hierarchy
 
+	'''
+		sets policy with action.
+		param action: <string>
+		param policy: [ \
+				(<string object_label>,<string user_label>), ... \
+			      ]
+	'''
+	def add_policy(self,action=None,policy=None):
+		if action and policy:
+			self.policy_dict[action] = policy
+		pass
+
+
 class Setup(object):
-	def __init__(self,object_hierarchy=None, user_hierarchy=None, policy=None):
+	'''
+		param: conf is a object of class Configuration
+	'''
+	def __init__(self,conf):
 		self.__object_hierarchy__ = None
 		self.__user_hierarchy__ = None
 		self.__policy__ = None
 
-		self.object_hierarchy = object_hierarchy
-		self.user_hierarchy = user_hierarchy
-		self.policy = policy
+		self.object_hierarchy = conf.object_label_hierarchy
+		self.user_hierarchy = conf.user_label_hierarchy
+		self.policy_dict = conf.policy_dict
+		#self.policy = policy
 		pass
 	@property	
 	def object_hierarchy(self):
@@ -353,7 +366,7 @@ class Setup(object):
 		return a dictionary {'o_label':[u_label,...], ... } 
 	'''
 	@property
-	def acl(self):		
+	def _acl(self):		
 		all_o_labels = self.__object_hierarchy__.labels
 		acl_dict= {}
 		for o_label in iter(all_o_labels):
@@ -372,10 +385,84 @@ class Setup(object):
 		self.__policy__ = plcy
 		self.bind_objectLabel_with_userLabel()
 
-class AccessControl(object):
-	def __init__(object):
-		pass
+	'''
+		get a dictionary like {action1:action1_acl, action2:action2_acl}
+		where actionx_acl is also a dictionary.
+	'''
+	@property
+	def acl(self):
+		all_acl = {}
+		for action in self.policy_dict.keys():
+			plcy = self.policy_dict[action]
+			self.policy = plcy
+			all_acl[action] = self._acl
+		return all_acl
+
+class LaBAC(object):
+	def __init__(self,conf=None):
+		self.__conf__ = None
+		if conf:
+			self.__conf__ = conf
+		self.__acl__ = None
 	
+	@property
+	def conf(self):
+		return self.__conf__ 
+
+	@conf.setter
+	def conf(self,conf):
+		self.__conf__ = conf
+	
+	def setup(self):
+		if self.__conf__:
+			setup = Setup(self.__conf__)
+			self.__acl__ = setup.acl
+		else:
+			#print error msg
+			pass
+	@property
+	def acl(self):
+		return self.__acl__
+
+	def request(self,user=None, object=None, action=None):
+		self.setup()
+		print self.__acl__
+		#do some validation
+		if user and object and action:
+			# from all acl get the acl for the action
+			action_acl = self.__acl__[action]
+			# get the acl for the requested object
+			object_acl = action_acl[object]
+			# check the requested user_label is in object's acl
+			if user in object_acl:
+				return True
+			else:
+				return False
+
+def test_LaBAC():
+	
+	conf = Configuration()
+	conf.object_label_hierarchy = [\
+						("o1",["o2","o3"]),\
+						("o2",["o4"]),\
+						("o5",["o4","o6"])\
+		
+				      ]
+	
+	conf.user_label_hierarchy = [\
+						("u1",["u2"]),\
+						("u3",["u1"])\
+				    ]
+
+	#conf.policy = [ ("o5","u1") ]
+	conf.add_policy("write", [ ("o5","u1") ] )
+	conf.add_policy("read",[ ("o1","u3"), ("o5","u3")] )
+	
+	lbac = LaBAC(conf)
+	print lbac.acl
+	print lbac.request(user="u1",object="o6",action="read")
+	
+
 
 def test_setup():
 	setup = Setup()
@@ -399,13 +486,12 @@ def test_setup2():
 						("u3",["u1"])\
 				    ]
 
-	conf.policy = [ ("o5","u1") ]
+	#conf.policy = [ ("o5","u1") ]
+	conf.add_policy("write", [ ("o5","u1") ] )
+	conf.add_policy("read",[ ("o1","u3"), ("o5","u3")] )
 		
 
-	setup = Setup(    object_hierarchy = conf.object_label_hierarchy, \
-			  user_hierarchy = conf.user_label_hierarchy, \
-			  policy = conf.policy \
-		     )
+	setup = Setup(conf)
 
 	print setup.acl
 	
@@ -453,4 +539,4 @@ def test():
 	test_object_label()
 
 if __name__ == "__main__":
-	test_setup2()
+	test_LaBAC()
