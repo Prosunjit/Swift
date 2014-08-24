@@ -62,31 +62,67 @@ class ObjectLabel(Label, object):
 		Label.__init__(self,name)
 		#self.name = name
 		# cleared_label  means the user label that have access this object label  as specified in the policy.
-		self.cleared_u_label = []
+		self._cleared_u_label = []
 		# inferred_label means inferred user labels that have access to this object label by user label hierarchy
-		self.inferred_u_label = []
+		self._inferred_u_label = []
 
 	@property
 	def acl(self):
-		return  self.cleared_u_label + self.inferred_u_label
+		return  self._cleared_u_label + self._inferred_u_label
 		
 
 	@property
 	def cleared_user_label(self):
-		return self.cleared_u_label
+		return self._cleared_u_label
 	
+	'''
+		param user_label : <Userlabel instance>
+	'''
 	@cleared_user_label.setter
 	def cleared_user_label(self, user_label):		
-		self.cleared_u_label.append(user_label)
-		'''  	we need to set inferred user label, inferred_user_label of a object, 
-			contains all such labels ul st ul is senior to given user_label
-			
-			Here I assume that user_label has already been set up for hierarchy.
-		'''
+		#self._cleared_u_label.append(user_label)
+		self._cleared_u_label += [user_label] if user_label not in self._cleared_u_label else []
+	
+	'''  	we need to set inferred user label, inferred_user_label of a object, 
+		contains all such labels ul st ul is senior to given user_label		
+		Here I assume that user_label has already been set up for hierarchy.
+	'''
 
-
+	@property
 	def inferred_user_label(self):
-		pass
+		return self._inferred_u_label
+
+	'''
+		param labels : [<UserLabel instance>, ... ]	
+	'''
+
+	@inferred_user_label.setter
+	def inferred_user_label(self,labels):
+		self._inferred_u_label += [l for l in labels if l not in self._inferred_u_label]
+	
+	def propagate(self):
+		self.propagate_inferred_label(self.acl)
+	
+	'''
+		if o1 dominates (>) o2, and o2 > o3 and so on, it method takes o1's acl 
+		(both cleared & inferred label) and tie it with o2's inferred_u_label, 
+		similarly, this happens for o2 and o3.
+
+		This method can be improved for performance. Instread of iterating over 
+		all juniors, propagate until deffered_user_label of a node change.
+
+		param acl = [<UserLabel instance>, ...]
+	'''
+	def propagate_inferred_label(self, acl):
+		immediate_juniors = self.is_senior_to
+		for jnr_lbl in iter(immediate_juniors):
+			jnr_lbl.inferred_user_label = acl
+			acl = jnr_lbl.acl
+			jnr_lbl.propagate_inferred_label(acl)
+
+		
+
+		
 	
 '''
 	Class UserLabel correspond to a user label in the A/C model.
@@ -129,13 +165,13 @@ class LabelHierarchy:
 		self.add_x_dominates_y(x="protected",y="private")
 
 	def add_x_dominates_y(self, x=None, y=None): # insert a hierarchy of two labels such that x dominates y. x_v, y_v are values of x & y
-		if self._find_node(x) == None:
+		if self.find_node(x) == None:
 			self._add_2_nodes(x)
-		if self._find_node(y) == None:
+		if self.find_node(y) == None:
 			self._add_2_nodes(y)
 
-		xx = self._find_node(x)
-		yy = self._find_node(y)
+		xx = self.find_node(x)
+		yy = self.find_node(y)
 		#self._add_x_dominates_y(x=xx, y=yy)
 		xx.is_senior_to = yy
 		yy.is_junior_to = xx
@@ -153,7 +189,7 @@ class LabelHierarchy:
 		self.labels.append(tn)
 		
 	
-	def _find_node(self,x_v):
+	def find_node(self,x_v):
 		
 		for n in self.labels:
 			if n.name == x_v:
@@ -192,7 +228,7 @@ class Configuration(object):
 
 	@staticmethod
 	def _dummy_policy():
-		return  [ ("u3","o1") ]
+		return  [ ("o1","u1"), ("o2","u2") ]
 	@staticmethod
 	def _dummy_user_label():
 		return [	("u1",["u2"]), \
@@ -214,6 +250,7 @@ class Setup(object):
 	def __init__(self):
 		self._object_hierarchy = None
 		self._user_hierarchy = None
+		self._policy = None
 		pass
 	@property	
 	def object_hierarchy(self):
@@ -232,16 +269,70 @@ class Setup(object):
 		except Exception as e:
 			print e
 
+	@property
+	def user_hierarchy(self):
+		return self._user_hierarchy
 
+	@user_hierarchy.setter
+	def user_hierarchy(self, hrchy):
+		self._user_hierarchy = LabelHierarchy(user=True)
+		try:
+			for l_tuple in hrchy:
+				(label,domination_list) = l_tuple
+				for dl in domination_list:
+					self._user_hierarchy.add_x_dominates_y(x=label,y=dl)
+					pass
+		except Exception as e:
+			print e
 
+	def bind_objectLabel_with_userLabel(self):
+		print self._policy
+		for plcy in iter(self._policy):
+			(ol,ul) = plcy
+			#now setup acl with each object.
+			ol_instance = self._object_hierarchy.find_node(ol)
+			ul_instance = self._user_hierarchy.find_node(ul)
 
+			ol_instance.cleared_user_label = ul_instance
+			ol_instance.inferred_user_label = ul_instance.all_senior_labels()
+			# propagating acl of a object_label to all its junior object labels.
+			ol_instance.propagate()
+	
+	'''
+		get acl of all object_labels
+		return a dictionary {'o_label':[u_label,...], ... } 
+	'''
+	@property
+	def acl(self):		
+		all_o_labels = self._object_hierarchy.labels
+		acl_dict= {}
+		for o_label in iter(all_o_labels):
+			acl_dict[o_label.name] =  [ l.name for l in o_label.acl ]
+		return acl_dict
+	
+		
+	@property
+	def policy(self):
+		return self._policy
+	'''	
+		param  plcy : [ ("o1","u1"), ... ]
+	'''
+	@policy.setter
+	def policy(self,plcy):
+		self._policy = plcy
+		self.bind_objectLabel_with_userLabel()
 
 class AccessControl(object):
 	def __init__(object):
 		pass
 	
 
-
+def test_setup():
+	setup = Setup()
+	setup.object_hierarchy = Configuration._dummy_object_label()
+	setup.user_hierarchy = Configuration._dummy_user_label()
+	setup.policy = Configuration._dummy_policy()
+	print setup.acl
 
 def test_configuration():
 	print "{} \n {} \n {} \n".format ( \
@@ -285,4 +376,4 @@ def test():
 	test_object_label()
 
 if __name__ == "__main__":
-	test_configuration()
+	test_setup()
