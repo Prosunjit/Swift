@@ -224,6 +224,9 @@ class LabelHierarchy:
 
 class Configuration(object):
 	def __init__(self):
+		self._policy = None
+		self._user_label_hierarchy = None
+		self._object_label_hierarchy = None
 		pass
 
 	@staticmethod
@@ -232,38 +235,85 @@ class Configuration(object):
 	@staticmethod
 	def _dummy_user_label():
 		return [	("u1",["u2"]), \
-				("u2",["u3"]), \
-				("u3",[]) \
+				("u2",["u3"]) \
 		       ]
 	@staticmethod
 	def _dummy_object_label():		
 		return [	("o1",["o2"]), \
-				("o2",["o3"]), \
-				("o3",[]) \
+				("o2",["o3"]) \
 		       ]
+	
+	@property
+	def policy(self):
+		return self._policy
+	
+	'''
+		sets policy
+		param policy: [ \
+				(<string object_label>,<string user_label>), ... \
+			      ]
+	'''
+	@policy.setter
+	def policy(self,policy):
+		self._policy = policy
 
-	def get_policy(self):
-		pass
+	@property
+	def user_label_hierarchy(self):
+		return self._user_label_hierarchy
+	
+	'''
+		sets user labels & hierarchy
+		param user_label_hiearchy: [ \
+						(<string user_label1>, [ <string user_label2>, ...]) , \
+						..., \
+						(<string user_label>, [ <string user_label>, ...]) \
+					   ]
+		here user_label1 is dominating user_label2 and other in the list.
+	'''	
+	@user_label_hierarchy.setter
+	def user_label_hierarchy(self, user_label_hierarchy):
+		self._user_label_hierarchy = user_label_hierarchy
 
+
+	@property
+	def object_label_hierarchy(self):
+		return self._object_label_hierarchy
+	
+	'''
+		sets object labels & hierarchy
+		param object_label_hiearchy: [ \
+						(<string object_label1>, [ <string ob_label2>, ...]) , \
+						..., \
+						(<string ob_label>, [ <string ob_label>, ...]) \
+					   ]
+		here user_label1 is dominating user_label2 and other in the list.
+	'''	
+	@object_label_hierarchy.setter
+	def object_label_hierarchy(self, ob_label_hierarchy):
+		self._object_label_hierarchy = ob_label_hierarchy
 
 class Setup(object):
-	def __init__(self):
-		self._object_hierarchy = None
-		self._user_hierarchy = None
-		self._policy = None
+	def __init__(self,object_hierarchy=None, user_hierarchy=None, policy=None):
+		self.__object_hierarchy__ = None
+		self.__user_hierarchy__ = None
+		self.__policy__ = None
+
+		self.object_hierarchy = object_hierarchy
+		self.user_hierarchy = user_hierarchy
+		self.policy = policy
 		pass
 	@property	
 	def object_hierarchy(self):
-		return self._object_hierarchy
+		return self.__object_hierarchy__
 
 	@object_hierarchy.setter
 	def object_hierarchy(self, hrchy):
-		self._object_hierarchy = LabelHierarchy(user=False) 
+		self.__object_hierarchy__ = LabelHierarchy(user=False) 
 		try:
 			for l_tuple in hrchy:
 				(label,domination_list) = l_tuple
 				for dl in domination_list:
-					self._object_hierarchy.add_x_dominates_y(x=label,y=dl)
+					self.__object_hierarchy__.add_x_dominates_y(x=label,y=dl)
 					pass
 
 		except Exception as e:
@@ -271,27 +321,27 @@ class Setup(object):
 
 	@property
 	def user_hierarchy(self):
-		return self._user_hierarchy
+		return self.__user_hierarchy__
 
 	@user_hierarchy.setter
 	def user_hierarchy(self, hrchy):
-		self._user_hierarchy = LabelHierarchy(user=True)
+		self.__user_hierarchy__ = LabelHierarchy(user=True)
 		try:
 			for l_tuple in hrchy:
 				(label,domination_list) = l_tuple
 				for dl in domination_list:
-					self._user_hierarchy.add_x_dominates_y(x=label,y=dl)
+					self.__user_hierarchy__.add_x_dominates_y(x=label,y=dl)
 					pass
 		except Exception as e:
 			print e
 
 	def bind_objectLabel_with_userLabel(self):
-		print self._policy
-		for plcy in iter(self._policy):
+		print self.__policy__
+		for plcy in iter(self.__policy__):
 			(ol,ul) = plcy
 			#now setup acl with each object.
-			ol_instance = self._object_hierarchy.find_node(ol)
-			ul_instance = self._user_hierarchy.find_node(ul)
+			ol_instance = self.__object_hierarchy__.find_node(ol)
+			ul_instance = self.__user_hierarchy__.find_node(ul)
 
 			ol_instance.cleared_user_label = ul_instance
 			ol_instance.inferred_user_label = ul_instance.all_senior_labels()
@@ -304,7 +354,7 @@ class Setup(object):
 	'''
 	@property
 	def acl(self):		
-		all_o_labels = self._object_hierarchy.labels
+		all_o_labels = self.__object_hierarchy__.labels
 		acl_dict= {}
 		for o_label in iter(all_o_labels):
 			acl_dict[o_label.name] =  [ l.name for l in o_label.acl ]
@@ -313,13 +363,13 @@ class Setup(object):
 		
 	@property
 	def policy(self):
-		return self._policy
+		return self.__policy__
 	'''	
 		param  plcy : [ ("o1","u1"), ... ]
 	'''
 	@policy.setter
 	def policy(self,plcy):
-		self._policy = plcy
+		self.__policy__ = plcy
 		self.bind_objectLabel_with_userLabel()
 
 class AccessControl(object):
@@ -333,6 +383,33 @@ def test_setup():
 	setup.user_hierarchy = Configuration._dummy_user_label()
 	setup.policy = Configuration._dummy_policy()
 	print setup.acl
+
+def test_setup2():
+	
+	conf = Configuration()
+	conf.object_label_hierarchy = [\
+						("o1",["o2","o3"]),\
+						("o2",["o4"]),\
+						("o5",["o4","o6"])\
+		
+				      ]
+	
+	conf.user_label_hierarchy = [\
+						("u1",["u2"]),\
+						("u3",["u1"])\
+				    ]
+
+	conf.policy = [ ("o5","u1") ]
+		
+
+	setup = Setup(    object_hierarchy = conf.object_label_hierarchy, \
+			  user_hierarchy = conf.user_label_hierarchy, \
+			  policy = conf.policy \
+		     )
+
+	print setup.acl
+	
+	
 
 def test_configuration():
 	print "{} \n {} \n {} \n".format ( \
@@ -376,4 +453,4 @@ def test():
 	test_object_label()
 
 if __name__ == "__main__":
-	test_setup()
+	test_setup2()
