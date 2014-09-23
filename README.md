@@ -37,7 +37,7 @@ Set up $TOKEN & $STORAGE_URL for experiment
 export TOKEN=`keystone token-get | grep id | head -n 1 | awk '{print $4}'`
 
 
-s_url=`keystone --os-username=admin --os-password=nova endpoint-list | grep AUTH_ | awk '{print $6}' | sed 's/\$(tenant_id)s//'`
+s_url=/`keystone --os-username=admin --os-password=nova endpoint-list | grep AUTH_ | awk '{print $6}' | sed 's/\$(tenant_id)s//'/`
 
 
 tenant_id=`keystone –os-username=admin –os-password=nova tenant-get $OS_TENANT_NAME | grep id | awk ‘{print $4}’`
