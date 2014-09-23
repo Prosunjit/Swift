@@ -72,5 +72,8 @@ def test():
 	#print File(sys.argv[1]).read()
 	print LoadJSON(str='{"a":10, "b":[20]}').get_json()	
 
+def test_file_read(filename):
+	print File(filename).read()
 if __name__ == '__main__':
-	test()
+	#test()
+	test_file_read("employee.json")
