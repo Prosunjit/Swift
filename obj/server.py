@@ -48,11 +48,14 @@ from swift.common.swob import HTTPAccepted, HTTPBadRequest, HTTPCreated, \
 from swift.obj.diskfile import DATAFILE_SYSTEM_META, DiskFileManager
 
 from swift.common.my_debug import my_debug
+import json
 
 try:
 	from swift.JSONAC.ObQuery import ContentFilter
+	from labac import Configuration, LBAC
 except Exception as e:
-	print "JSONAC import error{}".format(e)
+	print "JSONAC or LaBAC import error{}".format(e)
+
 
 class ObjectController(object):
     """Implements the WSGI application for the Swift Object Server."""
@@ -480,6 +483,9 @@ class ObjectController(object):
     @public
     @timing_stats()
     def GET(self, request):
+
+    	__CBAC__ = True
+
         """Handle HTTP GET requests for the Swift Object Server."""
 	my_debug('testing', '@GET()')
 	my_debug('#request headers', request.headers)
@@ -489,6 +495,11 @@ class ObjectController(object):
         keep_cache = self.keep_cache_private or (
             'X-Auth-Token' not in request.headers and
             'X-Storage-Token' not in request.headers)
+
+	if __CBAC__:
+		userRoles = request.headers['X-Roles']
+		my_debug("user roles are: ", userRoles)
+
         try:
             disk_file = self.get_diskfile(
                 device, partition, account, container, obj)
@@ -523,26 +534,44 @@ class ObjectController(object):
 		
 		'''
 
-		
+		if __CBAC__:		
 
-		json_policy = metadata['X-Object-Meta-Jsonpolicy'] if metadata.has_key('X-Object-Meta-Jsonpolicy') else None
+			json_policy = metadata['X-Object-Meta-Jsonpolicy'] \
+				if metadata.has_key('X-Object-Meta-Jsonpolicy') else None
+			user_labels = metadata['X-Object-Meta-Userlabels'] \
+				if metadata.has_key('X-Object-Meta-Userlabels') else None
+			object_labels = metadata['X-Object-Meta-Objectlabels'] \
+				if metadata.has_key('X-Object-Meta-Objectlabels') else None
+			object_labelling = metadata['X-Object-Meta-Jsonlabelling'] \
+				if metadata.has_key('X-Object-Meta-Jsonlabelling') else None
 
-		user_clearance = 'public'
+			cbac_policy = {}
+			cbac_policy['user_labels'] = json.loads(user_labels)
+			cbac_policy['object_labels'] = json.loads(object_labels)
+			cbac_policy['policy'] = json.loads(json_policy)
 
-		jsonpath = "/"
+			user_clearance = ['manager']
+			jsonpath = "/"
+			
+			#print ContentFilter
 
-		try:
-			if json_policy and user_clearance and jsonpath:
-				filtered_content = ContentFilter(content_str=response.body, policy_str=json_policy, user_clearance=user_clearance, query=jsonpath).apply()
-				if filtered_content:
-					response.body = filtered_content
-					obj_size = int(len(filtered_content))
+			#try:
+			if True:
+				if json_policy and user_clearance and jsonpath and object_labelling:
+					filtered_content = ContentFilter(content_str=response.body,\
+						labeling_policy_str=object_labelling, \
+						user_clearance=user_clearance, query=jsonpath, \
+						cbac_policy=cbac_policy).apply()
+
+					response.body = filtered_content or ""
+					obj_size = int(len(response.body))
+				else:
+					my_debug("#content_filter not working", True)
+			#except Exception as e:
 			else:
-				my_debug("#content_filter not working", True)
-		except Exception as e:
-			my_debug("Exception with content filtering{}".format(e), True)
+				my_debug("Exception with content filtering {}".format(e), True)
 
-		'''end of content -filter '''
+			'''end of content -filter '''
 			
                 response.headers['Content-Type'] = metadata.get(
                     'Content-Type', 'application/octet-stream')
