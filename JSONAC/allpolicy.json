@@ -1,0 +1,44 @@
+{ "labeling":[
+	{
+	 	 "label":"protected",
+		  "target":"/" 
+	},
+	{ 
+		"label":"public", 
+		"target":"/personalabelRecord" 
+	}
+],
+"policy":{
+	"read":[
+		{
+			"object_label":"protected",
+			"user_label": "manager"
+		},
+		{
+			"object_label":"private",
+			"user_label": "employee"
+		}
+	]
+},
+"object_labels":[
+	{ 
+		"name":"protected",
+		"dominates": ["public"]
+	},
+	{
+		"name":"private",
+		"dominates":["public"]
+	}
+],
+"user_labels":[
+	{ 
+		"name":"manager",
+		"dominates": ["employee"]
+	},
+	{
+		"name":"employee",
+		"dominates":["stuff"]
+	}
+
+]
+}
