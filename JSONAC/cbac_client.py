@@ -11,8 +11,6 @@ except Exception as e:
 USER="demo"
 PASS="nova"
 TENANT_NAME="demo"
-#KEYSTONE_URL= "http://192.168.0.106:5000/v2.0"
-#STORAGE_URL = "http://192.168.0.106:8080/v1/AUTH_4d6b4ade25754012a5cd22c255cffac8"
 
 
 def _set_metadata(meta_name=None, container=None, object=None,meta_value=None, TOKEN=None):
@@ -21,7 +19,6 @@ def _set_metadata(meta_name=None, container=None, object=None,meta_value=None, T
 	Keystone.set_config(keystone_ip="192.168.0.106", username="demo",password="nova")
 	storage_url = Keystone.storage_url(tenant=TENANT_NAME)
 	url = "{}/{}/{}".format(storage_url, container, object)
-	print url
 	res = requests.request("POST",url, headers={ \
 				"X-Auth-Token":TOKEN,\
 				"X-Object-Meta-"+meta_name[0]:meta_value[0],\
@@ -40,9 +37,8 @@ def set_metadata(policy_file=None,container=None, object=None):
 
 
 	#name = name or "Jsonpolicy"
-	Keystone.set_config(keystone_ip="192.168.0.106", username="demo",password="nova")
+	Keystone.set_config(keystone_ip="192.168.0.106", username="demo",password="nova",tenant="demo")
 	token = Keystone.get_token()
-	print token
 	container_name = container or "container1"
 	object_name = object or "employee.json"
 	return_status = ""
@@ -75,4 +71,3 @@ def set_metadata(policy_file=None,container=None, object=None):
 
 if __name__ == "__main__":
 	print set_metadata(policy_file="allpolicy.json", container="container1", object="employee.json")
-	#test_labac("allpolicy.json")

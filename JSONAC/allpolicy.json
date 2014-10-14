@@ -5,7 +5,7 @@
 	},
 	{ 
 		"label":"public", 
-		"target":"/personalabelRecord" 
+		"target":"/personalRecord" 
 	}
 ],
 "policy":{
