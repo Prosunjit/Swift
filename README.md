@@ -23,10 +23,10 @@ Note: the metadata can only be 256 character long. Need to find better way to st
 ------------------------------------------------------------------------------
 set-up keystone for the experiment:
 
-* Adding a role 'protected and attaching it to user 'demo' of tenant 'demo' * :
+* Adding a role 'employee' and attaching it to user 'demo' of tenant 'demo' * :
 
-- keystone --os-username=admin --os-password=nova role-create --name protected
-- keystone --os-username=admin --os-password=nova user-role-add --user=demo --role=protected --tenant=demo
+- keystone --os-username=admin --os-password=nova role-create --name employee
+- keystone --os-username=admin --os-password=nova user-role-add --user=demo --role=employee --tenant=demo
 - keystone --os-username=admin --os-password=nova user-role-list --user=demo
 
 
