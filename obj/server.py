@@ -372,6 +372,8 @@ class ObjectController(object):
         device, partition, account, container, obj = \
             split_and_validate_path(request, 5, 5, True)
 
+	my_debug("local variables in PUT()",locals())
+	my_debug("request.path", request.path)
         if 'x-timestamp' not in request.headers or \
                 not check_float(request.headers['x-timestamp']):
             return HTTPBadRequest(body='Missing timestamp', request=request,
@@ -480,6 +482,32 @@ class ObjectController(object):
             device)
         return HTTPCreated(request=request, etag=etag)
 
+
+    def tmp_disk_file(self, request=None, device=None, partition=None,container=None, obj=None, data=None, account=None):
+    	 try:
+	 	disk_file = self.get_diskfile(
+		             device, partition, account, container, obj)
+
+		with disk_file.create(size=len(data)) as writer:
+		#writer = disk_file.create(size=len(data)) 
+		
+			my_debug( "diskfile.create", writer)
+
+			writer.write(data)
+
+			metadata = { 
+			    'X-Timestamp': request.headers['X-Timestamp'], 
+			    'Content-Type': 'application/json',
+			    'Content-Length': len(data),
+			    'X-Delete-At':10,
+			    }
+			writer.put(metadata)
+			return disk_file
+	 except Exception as e:
+	 	my_debug("error creating tmp file", e)
+		return None
+	
+    	 
     @public
     @timing_stats()
     def GET(self, request):
@@ -505,6 +533,8 @@ class ObjectController(object):
                 device, partition, account, container, obj)
         except DiskFileDeviceUnavailable:
             return HTTPInsufficientStorage(drive=device, request=request)
+
+	my_debug("locals()",locals())
         try:
             with disk_file.open():
                 metadata = disk_file.get_metadata()
@@ -517,13 +547,7 @@ class ObjectController(object):
                 keep_cache = (self.keep_cache_private or
                               ('X-Auth-Token' not in request.headers and
                                'X-Storage-Token' not in request.headers))
-                response = Response(
-                    app_iter=disk_file.reader(keep_cache=keep_cache),
-		    # instead of app_iter which reads from the file, content is given in body
-		    #body="Yes, you are smart!\n",
-                    request=request, conditional_response=True)
-		#overriding obj_size to reflect the change.
-		#obj_size = len(response.body)
+
 		
 		''' if policy file is present & user_label is present apply JSONAC
 			Additional thing to have:
@@ -535,6 +559,15 @@ class ObjectController(object):
 		'''
 
 		if __CBAC__:		
+			
+			disk_file_iter =  disk_file.reader(keep_cache=keep_cache)
+			original_data = ""
+
+			for chunk in iter(disk_file_iter):
+				original_data += chunk
+
+			
+			userRoles = request.headers['X-Roles']
 
 			json_policy = metadata['X-Object-Meta-Jsonpolicy'] \
 				if metadata.has_key('X-Object-Meta-Jsonpolicy') else None
@@ -544,34 +577,65 @@ class ObjectController(object):
 				if metadata.has_key('X-Object-Meta-Objectlabels') else None
 			object_labelling = metadata['X-Object-Meta-Jsonlabelling'] \
 				if metadata.has_key('X-Object-Meta-Jsonlabelling') else None
+	
+			if json_policy and user_labels and object_labels :				
+				cbac_policy = {}
+				cbac_policy['user_labels'] = json.loads(user_labels)
+				cbac_policy['object_labels'] = json.loads(object_labels)
+				cbac_policy['policy'] = json.loads(json_policy)
 
-			cbac_policy = {}
-			cbac_policy['user_labels'] = json.loads(user_labels)
-			cbac_policy['object_labels'] = json.loads(object_labels)
-			cbac_policy['policy'] = json.loads(json_policy)
-
-			user_clearance = ['manager']
+			#user_clearance = ['manager']
+			user_clearance = userRoles
 			jsonpath = "/"
 			
-			#print ContentFilter
-
+			my_debug("json_policy is", json_policy)
+			my_debug("original data is ", original_data)
 			#try:
-			if True:
+			if json_policy :
 				if json_policy and user_clearance and jsonpath and object_labelling:
-					filtered_content = ContentFilter(content_str=response.body,\
-						labeling_policy_str=object_labelling, \
-						user_clearance=user_clearance, query=jsonpath, \
-						cbac_policy=cbac_policy).apply()
-
-					response.body = filtered_content or ""
-					obj_size = int(len(response.body))
+					'''filtered_content = ContentFilter(content_str=original_data,
+						labeling_policy_str=object_labelling, 
+						user_clearance=user_clearance, query=jsonpath, 
+						cbac_policy=cbac_policy).apply()'''
+					filtered_content = "testing"
+					my_debug("#filtered content is ", filtered_content)
 				else:
 					my_debug("#content_filter not working", True)
 			#except Exception as e:
 			else:
-				my_debug("Exception with content filtering {}".format(e), True)
+				my_debug("Exception with content filtering {}".format("e"), True)
 
 			'''end of content -filter '''
+
+			tmp_file = self.tmp_disk_file( request=request, device=device, partition=partition,
+					container=container, obj="tmp", data=filtered_content, account=account)
+
+			
+			tmp_file = self.get_diskfile(
+				      device, partition, account, container, "tmp")
+			my_debug("tmp_file is", tmp_file)
+		
+			try:
+				with tmp_file.open():
+					my_debug("with tmp_file.open()", tmp_file.reader(keep_cache=keep_cache))
+					response = Response(
+						 app_iter=tmp_file.reader(keep_cache=keep_cache),
+						 request=request, conditional_response=True)
+				
+					response.headers['Content-Type'] = metadata.get(
+					    'Content-Type', 'application/octet-stream')
+					response.content_length = len(filtered_content)
+					resp = request.get_response(response)
+			except (DiskFileNotExist, DiskFileQuarantined):			    	
+			    resp = HTTPNotFound(request=request, conditional_response=True)
+			return resp
+		
+		disk_file.open()
+                response = Response(
+                    app_iter=disk_file.reader(keep_cache=keep_cache),
+		    # instead of app_iter which reads from the file, content is given in body
+		    #body="Yes, you are smart!\n",
+                    request=request, conditional_response=True)
 			
                 response.headers['Content-Type'] = metadata.get(
                     'Content-Type', 'application/octet-stream')
