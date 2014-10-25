@@ -494,12 +494,16 @@ class ObjectController(object):
 			my_debug( "diskfile.create", writer)
 
 			writer.write(data)
+			etag = md5()
+			etag.update(data)
+			etag = etag.hexdigest()
 
 			metadata = { 
 			    'X-Timestamp': request.headers['X-Timestamp'], 
 			    'Content-Type': 'application/json',
 			    'Content-Length': len(data),
-			    'X-Delete-At':10,
+			    'X-Delete-At':time.time() + 1000,
+			    'ETag': etag,
 			    }
 			writer.put(metadata)
 			return disk_file
@@ -524,10 +528,6 @@ class ObjectController(object):
             'X-Auth-Token' not in request.headers and
             'X-Storage-Token' not in request.headers)
 
-	if __CBAC__:
-		userRoles = request.headers['X-Roles']
-		my_debug("user roles are: ", userRoles)
-
         try:
             disk_file = self.get_diskfile(
                 device, partition, account, container, obj)
@@ -535,6 +535,7 @@ class ObjectController(object):
             return HTTPInsufficientStorage(drive=device, request=request)
 
 	my_debug("locals()",locals())
+	my_debug("original Diskfile", disk_file)
         try:
             with disk_file.open():
                 metadata = disk_file.get_metadata()
@@ -559,7 +560,7 @@ class ObjectController(object):
 		'''
 
 		if __CBAC__:		
-			
+			my_debug("----CBAC Starts here-----", "***********")	
 			disk_file_iter =  disk_file.reader(keep_cache=keep_cache)
 			original_data = ""
 
@@ -587,6 +588,8 @@ class ObjectController(object):
 			#user_clearance = ['manager']
 			user_clearance = userRoles
 			jsonpath = "/"
+			filtered_content = ""
+
 			
 			my_debug("json_policy is", json_policy)
 			my_debug("original data is ", original_data)
@@ -599,36 +602,52 @@ class ObjectController(object):
 						cbac_policy=cbac_policy).apply()'''
 					filtered_content = "testing"
 					my_debug("#filtered content is ", filtered_content)
-				else:
-					my_debug("#content_filter not working", True)
-			#except Exception as e:
-			else:
-				my_debug("Exception with content filtering {}".format("e"), True)
+					#else:
+					#my_debug("#content_filter not working", True)
+					#except Exception as e:
+					#else:
+					#	my_debug("Exception with content filtering {}".format("e"), True)
 
-			'''end of content -filter '''
+					'''end of content -filter '''
 
-			tmp_file = self.tmp_disk_file( request=request, device=device, partition=partition,
-					container=container, obj="tmp", data=filtered_content, account=account)
+					tmp_file = self.tmp_disk_file( request=request, device=device, partition=partition,
+							container=container, obj="tmp", data=filtered_content, account=account)
 
-			
-			tmp_file = self.get_diskfile(
-				      device, partition, account, container, "tmp")
-			my_debug("tmp_file is", tmp_file)
-		
-			try:
-				with tmp_file.open():
-					my_debug("with tmp_file.open()", tmp_file.reader(keep_cache=keep_cache))
-					response = Response(
-						 app_iter=tmp_file.reader(keep_cache=keep_cache),
-						 request=request, conditional_response=True)
+					
+					tmp_file = self.get_diskfile(
+						      device, partition, account, container, "tmp")
+					my_debug("tmp_file is", tmp_file)
 				
-					response.headers['Content-Type'] = metadata.get(
-					    'Content-Type', 'application/octet-stream')
-					response.content_length = len(filtered_content)
-					resp = request.get_response(response)
-			except (DiskFileNotExist, DiskFileQuarantined):			    	
-			    resp = HTTPNotFound(request=request, conditional_response=True)
-			return resp
+					try:
+						with tmp_file.open():
+							tmp_metadata = tmp_file.get_metadata()
+							my_debug("with tmp_file.open()", tmp_file.reader(keep_cache=keep_cache))
+							response = Response(
+								 app_iter=tmp_file.reader(keep_cache=keep_cache),
+								 request=request, conditional_response=True)
+						
+							response.headers['Content-Type'] = tmp_metadata.get(
+							    'Content-Type', 'application/octet-stream')
+							response.content_length = len(filtered_content)
+
+
+							for key, value in tmp_metadata.iteritems():
+							    if is_user_meta('object', key) or \
+								    key.lower() in self.allowed_headers:
+								response.headers[key] = value
+							response.etag = tmp_metadata['ETag']
+							#response.last_modified = math.ceil(file_x_ts_flt)
+							#response.content_length = obj_size
+
+							my_debug("get_response", "test")
+							resp = request.get_response(response)
+							my_debug( "response", resp )
+							my_debug("rsponse.__dict__", resp.__dict__)
+					except (DiskFileNotExist, DiskFileQuarantined):	
+					    my_debug("tmp file is not found", "test")
+					    resp = HTTPNotFound(request=request, conditional_response=True)
+					my_debug("final resp object", resp) 
+					return resp
 		
 		disk_file.open()
                 response = Response(
@@ -657,6 +676,7 @@ class ObjectController(object):
                 resp = request.get_response(response)
         except (DiskFileNotExist, DiskFileQuarantined):
             resp = HTTPNotFound(request=request, conditional_response=True)
+	my_debug("resp object without cbac", resp.__dict__)
         return resp
 
     @public
@@ -822,6 +842,8 @@ class ObjectController(object):
             slow = self.slow - trans_time
             if slow > 0:
                 sleep(slow)
+	my_debug('returning from __call__ or objserver', res)
+	my_debug('returnign from __call__ of objserver', start_response)
         return res(env, start_response)
 
 
